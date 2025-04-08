@@ -10,7 +10,7 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     db.init_app(app)
-    CORS(app)
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
     register_routes(app)
 
     @app.route('/', defaults={'path': ''})
