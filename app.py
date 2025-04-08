@@ -28,8 +28,8 @@ def create_app(config_class=Config):
 
     return app
 
+# This line MUST be at top-level for gunicorn
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
+    with app.app_context_
