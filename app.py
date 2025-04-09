@@ -1,4 +1,3 @@
-# === app.py ===
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from models import db
@@ -6,15 +5,16 @@ from config import Config
 from routes import register_routes
 from routes.field_routes import field_bp
 
-
 app = Flask(__name__, static_folder='static')
 app.config.from_object(Config)
-app.register_blueprint(field_bp, url_prefix='/api/fields')
 
 db.init_app(app)
 
-# ✅ Only allow CORS from your Vercel frontend
+# ✅ CORS only from your Vercel frontend
 CORS(app, supports_credentials=True, origins=["https://tutto-baby-frontend.vercel.app"])
+
+# ✅ Blueprint explicitly registered with /api/fields prefix
+app.register_blueprint(field_bp, url_prefix='/api/fields')
 
 register_routes(app)
 
