@@ -11,10 +11,7 @@ app.config.from_object(Config)
 db.init_app(app)
 
 # ✅ Only allow CORS from your Vercel frontend
-CORS(app, resources={
-    r"/api/*": {"origins": "https://tutto-baby-frontend.vercel.app"},
-    r"/fields/*": {"origins": "https://tutto-baby-frontend.vercel.app"}
-})
+CORS(app, supports_credentials=True, origins=["https://tutto-baby-frontend.vercel.app"])
 
 register_routes(app)
 
