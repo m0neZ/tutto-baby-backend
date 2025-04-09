@@ -3,20 +3,21 @@ from flask_cors import CORS
 from models import db
 from config import Config
 from routes import register_routes
-from routes.field_routes import field_bp
+from routes.field_routes import field_bp  # ✅ registered manually below
 
 app = Flask(__name__, static_folder='static')
 app.config.from_object(Config)
 
 db.init_app(app)
 
-# ✅ CORS only from your Vercel frontend
+# ✅ Allow frontend from Vercel only
 CORS(app, supports_credentials=True, origins=["https://tutto-baby-frontend.vercel.app"])
 
-# ✅ Blueprint explicitly registered with /api/fields prefix
+# ✅ Register field routes directly here
 app.register_blueprint(field_bp, url_prefix='/api/fields')
 
-register_routes(app)
+# ✅ Register all other routes (excluding field_bp to avoid duplication)
+register_routes(app)  # Make sure this does NOT re-register field_bp
 
 with app.app_context():
     db.create_all()
