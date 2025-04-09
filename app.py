@@ -9,7 +9,13 @@ app = Flask(__name__, static_folder='static')
 app.config.from_object(Config)
 
 db.init_app(app)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# ✅ Only allow CORS from your Vercel frontend
+CORS(app, resources={
+    r"/api/*": {"origins": "https://tutto-baby-frontend.vercel.app"},
+    r"/fields/*": {"origins": "https://tutto-baby-frontend.vercel.app"}
+})
+
 register_routes(app)
 
 with app.app_context():
