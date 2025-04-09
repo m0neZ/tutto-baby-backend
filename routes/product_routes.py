@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models import db, Product, Supplier
 from utils.helpers import generate_sku
+from datetime import datetime
 
 product_bp = Blueprint('product_bp', __name__)
 
@@ -23,6 +24,9 @@ def create_product():
     if not supplier:
         return jsonify({'success': False, 'error': 'Supplier not found'}), 404
 
+purchase_date = data.get('purchase_date')
+sale_date = data.get('sale_date')
+
     product = Product(
         sku=data.get('sku') or '',  # Let backend generate if not provided
         name=data.get('name'),
@@ -33,7 +37,9 @@ def create_product():
         cost_price=data.get('cost_price'),
         retail_price=data.get('retail_price'),
         current_quantity=data.get('current_quantity', 0),
-        reorder_threshold=data.get('reorder_threshold', 5)
+        reorder_threshold=data.get('reorder_threshold', 5),
+        purchase_date=datetime.fromisoformat(purchase_date) if purchase_date else None,
+        sale_date=datetime.fromisoformat(sale_date) if sale_date else None
     )
 
     if not product.sku:
