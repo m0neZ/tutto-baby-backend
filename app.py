@@ -4,9 +4,12 @@ from flask_cors import CORS
 from models import db
 from config import Config
 from routes import register_routes
+from routes.field_routes import field_bp
+
 
 app = Flask(__name__, static_folder='static')
 app.config.from_object(Config)
+app.register_blueprint(field_bp, url_prefix='/api/fields')
 
 db.init_app(app)
 
