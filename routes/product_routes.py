@@ -58,11 +58,23 @@ def update_product(product_id):
 
     data = request.json
     for field in ['name', 'gender', 'size', 'color_print', 'supplier_id',
-                  'cost_price', 'retail_price', 'current_quantity', 'reorder_threshold']:
+                  'cost_price', 'retail_price', 'current_quantity', 'reorder_threshold',
+                  'purchase_date', 'sale_date']:
         if field in data:
-            setattr(product, field, data[field])
+            if field in ['purchase_date', 'sale_date']:
+                setattr(product, field, datetime.fromisoformat(data[field]) if data[field] else None)
+            else:
+                setattr(product, field, data[field])
 
     db.session.commit()
     return jsonify({'success': True, 'product': product.to_dict()}), 200
 
-@product_bp.route('/<int:product_id>', methods
+@product_bp.route('/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    product = Product.query.get(product_id)
+    if not product:
+        return jsonify({'success': False, 'error': 'Product not found'}), 404
+
+    db.session.delete(product)
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Product {product_id} deleted successfully'}), 200
