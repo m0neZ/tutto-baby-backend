@@ -39,7 +39,7 @@ class Product(db.Model):
             'current_quantity': self.current_quantity,
             'reorder_threshold': self.reorder_threshold,
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'updated_at': self.updated_at.isoformat(),
             'purchase_date': self.purchase_date.isoformat() if self.purchase_date else None,
             'sale_date': self.sale_date.isoformat() if self.sale_date else None,
         }
