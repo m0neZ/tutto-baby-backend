@@ -18,6 +18,8 @@ class Product(db.Model):
     reorder_threshold = db.Column(db.Integer, default=5)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    purchase_date = db.Column(db.Date)
+    sale_date = db.Column(db.Date)
 
     supplier = db.relationship('Supplier', backref=db.backref('products', lazy=True))
     transactions = db.relationship('InventoryTransaction', backref='product', lazy=True)
@@ -38,4 +40,6 @@ class Product(db.Model):
             'reorder_threshold': self.reorder_threshold,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
+            'purchase_date': self.purchase_date.isoformat() if self.purchase_date else None,
+            'sale_date': self.sale_date.isoformat() if self.sale_date else None,
         }
