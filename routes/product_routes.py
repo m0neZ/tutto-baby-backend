@@ -24,8 +24,8 @@ def create_product():
     if not supplier:
         return jsonify({'success': False, 'error': 'Supplier not found'}), 404
 
-purchase_date = data.get('purchase_date')
-sale_date = data.get('sale_date')
+    purchase_date = data.get('purchase_date')
+    sale_date = data.get('sale_date')
 
     product = Product(
         sku=data.get('sku') or '',  # Let backend generate if not provided
@@ -47,6 +47,7 @@ sale_date = data.get('sale_date')
 
     db.session.add(product)
     db.session.commit()
+
     return jsonify({'success': True, 'product': product.to_dict()}), 201
 
 @product_bp.route('/<int:product_id>', methods=['PUT'])
@@ -64,12 +65,4 @@ def update_product(product_id):
     db.session.commit()
     return jsonify({'success': True, 'product': product.to_dict()}), 200
 
-@product_bp.route('/<int:product_id>', methods=['DELETE'])
-def delete_product(product_id):
-    product = Product.query.get(product_id)
-    if not product:
-        return jsonify({'success': False, 'error': 'Product not found'}), 404
-
-    db.session.delete(product)
-    db.session.commit()
-    return jsonify({'success': True, 'message': f'Product {product_id} deleted successfully'}), 200
+@product_bp.route('/<int:product_id>', methods
