@@ -13,8 +13,14 @@ from src.routes import register_routes # Updated import path
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Configure Database URI using environment variables for deployment
-app.config["SQLALCHEMY_DATABASE_URI"] = f"mysql+pymysql://{os.getenv('DB_USERNAME', 'root')}:{os.getenv('DB_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_NAME', 'mydb')}"
+# Configure Database URI using Render's DATABASE_URL environment variable
+database_url = os.getenv('DATABASE_URL')
+if database_url and database_url.startswith("postgres://"):
+    # Render provides postgres://, SQLAlchemy needs postgresql://
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+# Fallback to a local SQLite database if DATABASE_URL is not set (for local development)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{os.path.join(os.path.dirname(app.instance_path), 'inventory.db')}"
 
 # Initialize Database
 db.init_app(app)
