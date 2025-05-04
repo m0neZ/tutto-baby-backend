@@ -14,7 +14,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Configure Database URI using Render's DATABASE_URL environment variable
-database_url = os.getenv('DATABASE_URL')
+database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     # Render provides postgres://, SQLAlchemy needs postgresql://
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -26,9 +26,11 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{os.path.joi
 db.init_app(app)
 
 # Configure CORS
-# Placeholder origin, will be updated after frontend deployment
+# *** FIX: Explicitly allow Vercel frontend URL ***
 CORS(app, supports_credentials=True, origins=[
-    "*" # Temporarily allow all origins, will restrict later
+    "https://tutto-baby-frontend.vercel.app", # Production frontend
+    "http://localhost:3000", # Allow local development frontend
+    "http://127.0.0.1:3000" # Allow local development frontend
 ])
 
 # Register all blueprints using the function from routes/__init__.py
@@ -61,4 +63,5 @@ def health_check():
 # Running the app section remains commented out for production deployment
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
