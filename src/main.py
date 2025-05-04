@@ -26,9 +26,10 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{os.path.joi
 db.init_app(app)
 
 # Configure CORS
-# *** FIX: Explicitly allow Vercel frontend URL ***
+# *** FIX: Explicitly allow Vercel frontend URL (with and without trailing slash) ***
 CORS(app, supports_credentials=True, origins=[
     "https://tutto-baby-frontend.vercel.app", # Production frontend
+    "https://tutto-baby-frontend.vercel.app/", # Production frontend (with slash)
     "http://localhost:3000", # Allow local development frontend
     "http://127.0.0.1:3000" # Allow local development frontend
 ])
