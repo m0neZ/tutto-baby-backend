@@ -1,5 +1,5 @@
 # === utils/helpers.py ===
-from models.product import Produto # Use the new model name
+from src.models.product import Produto # Use the new model name
 
 def generate_sku(produto):
     """Generates a potentially unique SKU based on product attributes."""
