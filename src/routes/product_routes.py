@@ -163,8 +163,11 @@ def delete_produto(produto_id):
         return jsonify({"success": False, "error": "Produto não encontrado"}), 404
 
     # Check for related transactions or sales before deleting? (Optional, depends on requirements)
-    # if produto.transacoes or produto.itens_venda:
-    #     return jsonify({"success": False, "error": "Não é possível excluir produto com histórico de transações ou vendas."}), 400
+    if produto.transacoes: # Check if the relationship list is not empty
+        return jsonify({"success": False, "error": "Não é possível excluir produto com histórico de transações."}), 400
+    # Add check for sales items if that relationship exists
+    # if produto.itens_venda:
+    #     return jsonify({"success": False, "error": "Não é possível excluir produto com histórico de vendas."}), 400
 
     try:
         db.session.delete(produto)
