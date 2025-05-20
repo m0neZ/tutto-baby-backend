@@ -27,7 +27,7 @@ def create_app():
     with app.app_context():
         if User.query.count() == 0:
             admin_email = os.getenv("ADMIN_EMAIL")
-            admin_pass  = os.getenv("ADMIN_PASS")
+            admin_pass = os.getenv("ADMIN_PASS")
             if admin_email and admin_pass:
                 admin = User(email=admin_email, name="Administrator")
                 admin.set_password(admin_pass)
@@ -48,12 +48,12 @@ def create_app():
     def health_check():
         return jsonify({"status": "ok"}), 200
 
-    # HTTP errors
+    # Handle HTTP exceptions gracefully
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):
         return jsonify({"success": False, "error": e.description}), e.code
 
-    # Catch-all
+    # Catch-all for other exceptions
     @app.errorhandler(Exception)
     def handle_exception(e):
         app.logger.error(f"Server Error: {e}", exc_info=True)
