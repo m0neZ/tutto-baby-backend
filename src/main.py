@@ -1,3 +1,5 @@
+// src/main.py
+import os
 from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
@@ -6,6 +8,7 @@ from flask_jwt_extended import JWTManager
 
 from src.config import Config
 from src.models import db
+from src.models.user import User
 from src.routes import register_routes
 
 def create_app():
@@ -20,6 +23,23 @@ def create_app():
     # Restrict CORS to your frontend domain
     CORS(app, origins=["https://tutto-baby-frontend.vercel.app"], supports_credentials=True)
 
+    # Auto-seed initial admin user if none exists
+    with app.app_context():
+        if User.query.count() == 0:
+            admin_email = os.getenv("ADMIN_EMAIL")
+            admin_pass  = os.getenv("ADMIN_PASS")
+            if admin_email and admin_pass:
+                admin = User(email=admin_email, name="Administrator")
+                admin.set_password(admin_pass)
+                admin.role = "admin"
+                db.session.add(admin)
+                db.session.commit()
+                app.logger.info(f"Auto-created admin user: {admin_email}")
+            else:
+                app.logger.warning(
+                    "No ADMIN_EMAIL/ADMIN_PASS set; skipping auto-seed of admin user."
+                )
+
     # Register blueprints
     register_routes(app)
 
@@ -28,12 +48,12 @@ def create_app():
     def health_check():
         return jsonify({"status": "ok"}), 200
 
-    # Handle HTTP errors cleanly
+    # HTTP errors
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):
         return jsonify({"success": False, "error": e.description}), e.code
 
-    # Catch-all for other exceptions
+    # Catch-all
     @app.errorhandler(Exception)
     def handle_exception(e):
         app.logger.error(f"Server Error: {e}", exc_info=True)
@@ -41,5 +61,5 @@ def create_app():
 
     return app
 
-# Entry point for deployment (e.g. gunicorn)
+# Entrypoint
 app = create_app()
