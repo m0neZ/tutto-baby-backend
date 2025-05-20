@@ -1,6 +1,8 @@
+# File: src/routes/alert_routes.py
+
 # === routes/alert_routes.py ===
 from flask import Blueprint, jsonify
-from src.models import db, Produto  # Use Portuguese model name
+from src.models import db, Produto  # Updated import to use package
 
 # Rename blueprint
 alerta_bp = Blueprint("alerta_bp", __name__)
