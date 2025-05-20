@@ -1,68 +1,45 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__))) # Required for deployment
-
-from flask import Flask, jsonify, request # Removed send_from_directory
+from flask import Flask, jsonify
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
-from src.models import db # Updated import path
-from src.config import Config # Updated import path
-from src.routes import register_routes # Updated import path
+from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
 
-# Initialize Flask app
-# Removed static_folder and static_url_path as frontend is deployed separately
-app = Flask(__name__)
-app.config.from_object(Config)
+from src.config import Config
+from src.models import db
+from src.routes import register_routes
 
-# Configure Database URI using Render's DATABASE_URL environment variable
-database_url = os.getenv("DATABASE_URL")
-if database_url and database_url.startswith("postgres://"):
-    # Render provides postgres://, SQLAlchemy needs postgresql://
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
 
-# Fallback to a local SQLite database if DATABASE_URL is not set (for local development)
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url or f"sqlite:///{os.path.join(os.path.dirname(app.instance_path), 'inventory.db')}"
+    # Initialize extensions
+    db.init_app(app)
+    Migrate(app, db)
+    JWTManager(app)
 
-# Initialize Database
-db.init_app(app)
+    # Restrict CORS to your frontend domain
+    CORS(app, origins=["https://tutto-baby-frontend.vercel.app"], supports_credentials=True)
 
-# Configure CORS
-# *** FIX: Explicitly allow Vercel frontend URL (with and without trailing slash) ***
-CORS(app, supports_credentials=True, origins=[
-    "https://tutto-baby-frontend.vercel.app", # Production frontend
-    "https://tutto-baby-frontend.vercel.app/", # Production frontend (with slash)
-    "http://localhost:3000", # Allow local development frontend
-    "http://127.0.0.1:3000" # Allow local development frontend
-])
+    # Register blueprints
+    register_routes(app)
 
-# Register all blueprints using the function from routes/__init__.py
-register_routes(app)
+    # Health-check
+    @app.route("/health")
+    def health_check():
+        return jsonify({"status": "ok"}), 200
 
-# Create database tables if they don't exist
-# In a production setup, migrations (e.g., using Flask-Migrate) are preferred
-with app.app_context():
-    db.create_all()
+    # Handle HTTP errors cleanly
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(e):
+        return jsonify({"success": False, "error": e.description}), e.code
 
-# Removed serve_frontend route as frontend is deployed separately
+    # Catch-all for other exceptions
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        app.logger.error(f"Server Error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Erro interno do servidor"}), 500
 
-# Error Handlers
-@app.errorhandler(404)
-def not_found(e):
-    # API requests get JSON 404
-    return jsonify({"success": False, "error": "Recurso não encontrado"}), 404
+    return app
 
-@app.errorhandler(500)
-def server_error(e):
-    # Log the error details for debugging
-    app.logger.error(f"Server Error: {e}", exc_info=True)
-    return jsonify({"success": False, "error": "Erro interno do servidor"}), 500
-
-# Optional: Add a simple health check endpoint
-@app.route("/health")
-def health_check():
-    return jsonify({"status": "ok"}), 200
-
-# Running the app section remains commented out for production deployment
-# if __name__ == "__main__":
-#     app.run(host="0.0.0.0", port=5000, debug=True)
-
-
+# Entry point for deployment (e.g. gunicorn)
+app = create_app()
