@@ -1,4 +1,3 @@
-// src/main.py
 import os
 from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException
@@ -43,17 +42,17 @@ def create_app():
     # Register blueprints
     register_routes(app)
 
-    # Health-check
+    # Health-check endpoint
     @app.route("/health")
     def health_check():
         return jsonify({"status": "ok"}), 200
 
-    # Handle HTTP exceptions gracefully
+    # HTTP exception handler
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):
         return jsonify({"success": False, "error": e.description}), e.code
 
-    # Catch-all for other exceptions
+    # Catch-all for unexpected errors
     @app.errorhandler(Exception)
     def handle_exception(e):
         app.logger.error(f"Server Error: {e}", exc_info=True)
@@ -61,5 +60,5 @@ def create_app():
 
     return app
 
-# Entrypoint
+# Entrypoint for Gunicorn
 app = create_app()
