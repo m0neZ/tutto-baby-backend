@@ -22,11 +22,21 @@ def create_app():
     # Restrict CORS to your frontend domain
     CORS(app, origins=["https://tutto-baby-frontend.vercel.app"], supports_credentials=True)
 
-    # Auto-seed initial admin user if none exists
+    # Ensure database tables exist and seed initial admin user if none exists
     with app.app_context():
-        if User.query.count() == 0:
+        # Create all tables if they don't exist
+        db.create_all()
+
+        # Auto-seed initial admin user
+        try:
+            user_count = User.query.count()
+        except Exception as e:
+            app.logger.error(f"Error counting users: {e}")
+            user_count = 0
+
+        if user_count == 0:
             admin_email = os.getenv("ADMIN_EMAIL")
-            admin_pass = os.getenv("ADMIN_PASS")
+            admin_pass  = os.getenv("ADMIN_PASS")
             if admin_email and admin_pass:
                 admin = User(email=admin_email, name="Administrator")
                 admin.set_password(admin_pass)
@@ -60,5 +70,5 @@ def create_app():
 
     return app
 
-# Entrypoint for Gunicorn
+# Entrypoint
 app = create_app()
