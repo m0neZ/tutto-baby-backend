@@ -24,10 +24,10 @@ def create_app():
 
     # Ensure database tables exist and seed initial admin user if none exists
     with app.app_context():
-        # Create all tables if they don't exist
+        # Ensure tables exist
         db.create_all()
 
-        # Auto-seed initial admin user
+        # Auto-seed initial admin user if none exists
         try:
             user_count = User.query.count()
         except Exception as e:
@@ -35,8 +35,8 @@ def create_app():
             user_count = 0
 
         if user_count == 0:
-            admin_email = os.getenv("ADMIN_EMAIL")
-            admin_pass  = os.getenv("ADMIN_PASS")
+            admin_email = os.getenv("ADMIN_EMAIL", "").strip()
+            admin_pass  = os.getenv("ADMIN_PASS", "").strip()
             if admin_email and admin_pass:
                 admin = User(email=admin_email, name="Administrator")
                 admin.set_password(admin_pass)
@@ -46,7 +46,7 @@ def create_app():
                 app.logger.info(f"Auto-created admin user: {admin_email}")
             else:
                 app.logger.warning(
-                    "No ADMIN_EMAIL/ADMIN_PASS set; skipping auto-seed of admin user."
+                    "No ADMIN_EMAIL/ADMIN_PASS set or empty; skipping auto-seed of admin user."
                 )
 
     # Register blueprints
