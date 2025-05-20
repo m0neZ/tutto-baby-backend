@@ -1,6 +1,6 @@
 # === routes/alert_routes.py ===
 from flask import Blueprint, jsonify
-from models import db, Produto # Use Portuguese model name
+from src.models import db, Produto  # Use Portuguese model name
 
 # Rename blueprint
 alerta_bp = Blueprint("alerta_bp", __name__)
@@ -11,7 +11,7 @@ def get_low_stock_alerts():
     # Use Portuguese field names
     produtos_estoque_baixo = Produto.query.filter(
         Produto.quantidade_atual <= Produto.limite_reabastecimento,
-        Produto.quantidade_atual > -99999 # Basic filter
+        Produto.quantidade_atual > -99999  # Basic filter
     ).order_by(Produto.nome).all()
 
     return jsonify({
@@ -23,4 +23,3 @@ def get_low_stock_alerts():
 # Potential future alerts:
 # - Products nearing expiry (if expiry date is added)
 # - Slow-moving stock
-
