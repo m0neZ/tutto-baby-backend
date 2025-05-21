@@ -20,7 +20,7 @@ def create_app():
     JWTManager(app)
 
     # Restrict CORS to your frontend domain
-    CORS(app, origins=["https://tutto-baby-frontend.vercel.app"], supports_credentials=True)
+    CORS(app, origins=["https://www.tuttobaby.com.br"], supports_credentials=True)
 
     # Ensure database tables exist and seed initial admin user if none exists
     with app.app_context():
