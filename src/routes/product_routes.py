@@ -1,16 +1,16 @@
 # === routes/product_routes.py ===
-from flask import Blueprint, request, jsonify
-from src.models import db, Produto, Fornecedor, TransacaoEstoque # Updated import path
-from src.utils.helpers import generate_sku # Updated import path
+from flask import Blueprint, request, jsonify, current_app
+from src.models import db, Produto, TransacaoEstoque, OpcaoCampo
 from datetime import datetime
+import os
+from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 
-# Rename blueprint for consistency
 produto_bp = Blueprint("produto_bp", __name__)
 
 @produto_bp.route("/", methods=["GET"])
 def get_all_produtos():
-    # Query the Produto model
-    produtos = Produto.query.order_by(Produto.nome).all()
+    produtos = Produto.query.all()
     return jsonify({"success": True, "produtos": [p.to_dict() for p in produtos]}), 200
 
 @produto_bp.route("/<int:produto_id>", methods=["GET"])
@@ -23,200 +23,296 @@ def get_produto(produto_id):
 @produto_bp.route("/", methods=["POST"])
 def create_produto():
     data = request.json
-    # Use Portuguese field names from request
-    fornecedor_id = data.get("fornecedor_id")
+    
+    # Extract data with defaults
     nome = data.get("nome")
-    sexo = data.get("sexo")
     tamanho = data.get("tamanho")
+    sexo = data.get("sexo")
     cor_estampa = data.get("cor_estampa")
+    fornecedor_id = data.get("fornecedor_id")
     custo = data.get("custo")
     preco_venda = data.get("preco_venda")
-    quantidade_inicial = data.get("quantidade_atual", 0) # Use quantidade_atual for initial quantity
-    limite_reabastecimento = data.get("limite_reabastecimento", 5)
+    quantidade = data.get("quantidade", 1)
     data_compra_str = data.get("data_compra")
-
-    # Basic validation
-    if not all([nome, sexo, tamanho, cor_estampa, fornecedor_id, custo is not None, preco_venda is not None]):
-        return jsonify({"success": False, "error": "Campos obrigatórios ausentes"}), 400
-
-    fornecedor = Fornecedor.query.get(fornecedor_id)
-    if not fornecedor:
-        return jsonify({"success": False, "error": "Fornecedor não encontrado"}), 404
-    if not fornecedor.is_active:
-         return jsonify({"success": False, "error": "Fornecedor inativo"}), 400
-
+    
+    # Validate required fields
+    if not all([nome, tamanho, sexo, cor_estampa, fornecedor_id, custo, preco_venda]):
+        return jsonify({"success": False, "error": "Todos os campos são obrigatórios"}), 400
+    
+    # Parse date
     try:
-        custo = float(custo)
-        preco_venda = float(preco_venda)
-        quantidade_inicial = int(quantidade_inicial)
-        limite_reabastecimento = int(limite_reabastecimento)
-        # Corrected the format string for strptime
-        data_compra = datetime.strptime(data_compra_str, "%Y-%m-%d").date() if data_compra_str else None
-    except (ValueError, TypeError) as e:
-        return jsonify({"success": False, "error": f"Erro de tipo de dado: {e}"}), 400
-
-    # Create Produto instance
-    novo_produto = Produto(
-        nome=nome,
-        sexo=sexo,
-        tamanho=tamanho,
-        cor_estampa=cor_estampa,
-        fornecedor_id=fornecedor.id,
-        custo=custo,
-        preco_venda=preco_venda,
-        quantidade_atual=quantidade_inicial,
-        limite_reabastecimento=limite_reabastecimento,
-        data_compra=data_compra
-        # SKU is generated below
-    )
-
-    # Generate SKU before adding to session to ensure uniqueness check works
-    novo_produto.sku = generate_sku(novo_produto)
-
-    db.session.add(novo_produto)
-
-    # Create initial inventory transaction if quantity > 0
-    if quantidade_inicial > 0:
-        transacao = TransacaoEstoque(
-            produto=novo_produto,
-            tipo_transacao="compra", # Initial stock entry
-            quantidade=quantidade_inicial,
-            observacoes="Estoque inicial",
-            custo_unitario_transacao=custo # Record cost at time of entry
-        )
-        db.session.add(transacao)
-
+        if data_compra_str:
+            data_compra = datetime.strptime(data_compra_str, "%Y-%m-%d").date()
+        else:
+            data_compra = datetime.now().date()
+    except ValueError:
+        return jsonify({"success": False, "error": "Formato de data inválido. Use YYYY-MM-DD"}), 400
+    
+    # Create products (one per quantity for single-unit paradigm)
+    produtos_criados = []
+    
     try:
+        for i in range(int(quantidade)):
+            novo_produto = Produto(
+                nome=nome,
+                tamanho=tamanho,
+                sexo=sexo,
+                cor_estampa=cor_estampa,
+                fornecedor_id=fornecedor_id,
+                custo=float(custo),
+                preco_venda=float(preco_venda),
+                quantidade_atual=1,  # Always 1 in single-unit paradigm
+                data_compra=data_compra
+            )
+            db.session.add(novo_produto)
+            
+            # Create purchase transaction
+            transacao = TransacaoEstoque(
+                produto=novo_produto,
+                tipo_transacao="compra",
+                quantidade=1,
+                data_transacao=data_compra,
+                observacoes="Compra inicial",
+                custo_unitario_transacao=float(custo)
+            )
+            db.session.add(transacao)
+            
+            produtos_criados.append(novo_produto)
+        
         db.session.commit()
+        return jsonify({
+            "success": True, 
+            "message": f"{len(produtos_criados)} produto(s) criado(s) com sucesso",
+            "produtos": [p.to_dict() for p in produtos_criados]
+        }), 201
+    
     except Exception as e:
         db.session.rollback()
-        # Check for unique constraint violation (e.g., SKU)
-        if "UNIQUE constraint failed" in str(e):
-             return jsonify({"success": False, "error": "Falha ao criar produto: SKU duplicado ou outro erro de restrição.", "details": str(e)}), 409
-        return jsonify({"success": False, "error": "Erro interno do servidor ao salvar.", "details": str(e)}), 500
-
-    return jsonify({"success": True, "produto": novo_produto.to_dict()}), 201
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @produto_bp.route("/<int:produto_id>", methods=["PUT"])
 def update_produto(produto_id):
     produto = Produto.query.get(produto_id)
     if not produto:
         return jsonify({"success": False, "error": "Produto não encontrado"}), 404
-
+    
     data = request.json
-    updated = False
-
-    # Fields allowed to update (excluding quantity, handled via transactions)
-    allowed_fields = {
-        "nome": str,
-        "sexo": str,
-        "tamanho": str,
-        "cor_estampa": str,
-        "fornecedor_id": int,
-        "custo": float,
-        "preco_venda": float,
-        "limite_reabastecimento": int,
-        "data_compra": "date" # Special handling for date
-    }
-
-    for field, field_type in allowed_fields.items():
-        if field in data:
-            new_value = data[field]
-            try:
-                if field_type == "date":
-                    # Corrected the format string for strptime
-                    new_value = datetime.strptime(new_value, "%Y-%m-%d").date() if new_value else None
-                elif field_type == int:
-                    new_value = int(new_value)
-                elif field_type == float:
-                    new_value = float(new_value)
-                # Add validation for foreign keys if needed (e.g., check if fornecedor_id exists)
-                if field == "fornecedor_id":
-                    fornecedor = Fornecedor.query.get(new_value)
-                    if not fornecedor:
-                         return jsonify({"success": False, "error": f"Fornecedor com ID {new_value} não encontrado"}), 404
-                    if not fornecedor.is_active:
-                         return jsonify({"success": False, "error": f"Fornecedor {fornecedor.nome} está inativo"}), 400
-
-                if getattr(produto, field) != new_value:
-                    setattr(produto, field, new_value)
-                    updated = True
-            except (ValueError, TypeError):
-                 return jsonify({"success": False, "error": f"Valor inválido para o campo {field}"}), 400
-
-    if updated:
-        # Note: SKU regeneration might be needed if key attributes change, depends on requirements.
-        # For now, SKU is not regenerated on update.
+    
+    # Update fields
+    if "nome" in data:
+        produto.nome = data["nome"]
+    if "tamanho" in data:
+        produto.tamanho = data["tamanho"]
+    if "sexo" in data:
+        produto.sexo = data["sexo"]
+    if "cor_estampa" in data:
+        produto.cor_estampa = data["cor_estampa"]
+    if "fornecedor_id" in data:
+        produto.fornecedor_id = data["fornecedor_id"]
+    if "custo" in data:
+        produto.custo = float(data["custo"])
+    if "preco_venda" in data:
+        produto.preco_venda = float(data["preco_venda"])
+    if "data_compra" in data:
         try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"success": False, "error": "Erro interno do servidor ao atualizar.", "details": str(e)}), 500
+            produto.data_compra = datetime.strptime(data["data_compra"], "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"success": False, "error": "Formato de data inválido. Use YYYY-MM-DD"}), 400
+    
+    try:
+        db.session.commit()
         return jsonify({"success": True, "produto": produto.to_dict()}), 200
-    else:
-        return jsonify({"success": True, "message": "Nenhuma alteração detectada", "produto": produto.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @produto_bp.route("/<int:produto_id>", methods=["DELETE"])
 def delete_produto(produto_id):
     produto = Produto.query.get(produto_id)
     if not produto:
         return jsonify({"success": False, "error": "Produto não encontrado"}), 404
-
-    # Check if the product has quantity = 0 (already sold)
-    if produto.quantidade_atual == 0:
-        return jsonify({
-            "success": False, 
-            "error": "Não é possível excluir produto com quantidade 0 (já vendido)."
-        }), 400
     
-    # Check if the product has quantity = 1 (can be deleted)
+    # Check if product has quantity = 1 (can only delete products with quantity = 1)
     if produto.quantidade_atual != 1:
-        return jsonify({
-            "success": False, 
-            "error": "Só é possível excluir produtos com quantidade = 1."
-        }), 400
-
+        return jsonify({"success": False, "error": "Só é possível excluir produtos com quantidade = 1."}), 400
+    
     try:
-        # Delete associated transactions to avoid foreign key constraint errors
-        if hasattr(produto, 'transacoes') and produto.transacoes:
-            for transacao in produto.transacoes:
-                db.session.delete(transacao)
+        # Delete associated transactions
+        TransacaoEstoque.query.filter_by(produto_id=produto_id).delete()
         
-        # Now delete the product
+        # Delete the product
         db.session.delete(produto)
         db.session.commit()
+        return jsonify({"success": True, "message": "Produto excluído com sucesso"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"success": False, "error": "Erro interno do servidor ao excluir.", "details": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-    return jsonify({"success": True, "message": f"Produto {produto_id} excluído com sucesso"}), 200
-
-# Special endpoint for clearing all test data
 @produto_bp.route("/clear_all_test_data", methods=["POST"])
 def clear_all_test_data():
     try:
-        # Get all products
-        produtos = Produto.query.all()
+        # Delete all transactions first (due to foreign key constraints)
+        TransacaoEstoque.query.delete()
         
-        # Delete all associated transactions first
-        for produto in produtos:
-            if hasattr(produto, 'transacoes') and produto.transacoes:
-                for transacao in produto.transacoes:
-                    db.session.delete(transacao)
+        # Delete all products
+        num_deleted = db.session.query(Produto).delete()
         
-        # Then delete all products
-        for produto in produtos:
-            db.session.delete(produto)
-            
         db.session.commit()
         return jsonify({
             "success": True, 
-            "message": "Todos os produtos e transações foram excluídos com sucesso."
+            "message": f"Todos os dados de teste foram excluídos com sucesso. {num_deleted} produtos removidos."
         }), 200
     except Exception as e:
         db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@produto_bp.route("/import", methods=["POST"])
+def import_produtos():
+    data = request.json
+    if not data or "products" not in data or not isinstance(data["products"], list):
+        return jsonify({"success": False, "error": "Dados de importação inválidos"}), 400
+    
+    products_data = data["products"]
+    if len(products_data) == 0:
+        return jsonify({"success": False, "error": "Nenhum produto para importar"}), 400
+    
+    # Track new options created
+    new_options = {
+        "tamanhos": [],
+        "cores": [],
+        "fornecedores": []
+    }
+    
+    # Process products
+    produtos_criados = []
+    
+    try:
+        for product in products_data:
+            # Extract data
+            nome = product.get("nome")
+            tamanho = product.get("tamanho")
+            sexo = product.get("sexo")
+            cor_estampa = product.get("cor_estampa")
+            fornecedor_nome = product.get("fornecedor")
+            custo_str = product.get("custo")
+            preco_venda_str = product.get("preco_venda")
+            quantidade_str = product.get("quantidade", "1")
+            data_compra_str = product.get("data_compra")
+            
+            # Validate required fields
+            if not all([nome, tamanho, sexo, cor_estampa, fornecedor_nome, custo_str, preco_venda_str]):
+                continue  # Skip invalid products
+            
+            # Parse numeric values
+            try:
+                custo = float(custo_str)
+                preco_venda = float(preco_venda_str)
+                quantidade = int(quantidade_str) if quantidade_str else 1
+            except (ValueError, TypeError):
+                continue  # Skip if numeric conversion fails
+            
+            # Parse date
+            try:
+                if data_compra_str:
+                    data_compra = datetime.strptime(data_compra_str, "%Y-%m-%d").date()
+                else:
+                    data_compra = datetime.now().date()
+            except ValueError:
+                data_compra = datetime.now().date()  # Default to today if format is wrong
+            
+            # Check if tamanho exists, create if not
+            tamanho_option = OpcaoCampo.query.filter_by(
+                tipo="tamanho", 
+                valor=tamanho
+            ).first()
+            
+            if not tamanho_option:
+                tamanho_option = OpcaoCampo(
+                    tipo="tamanho",
+                    valor=tamanho,
+                    ativo=True
+                )
+                db.session.add(tamanho_option)
+                new_options["tamanhos"].append(tamanho)
+            
+            # Check if cor_estampa exists, create if not
+            cor_option = OpcaoCampo.query.filter_by(
+                tipo="cor_estampa", 
+                valor=cor_estampa
+            ).first()
+            
+            if not cor_option:
+                cor_option = OpcaoCampo(
+                    tipo="cor_estampa",
+                    valor=cor_estampa,
+                    ativo=True
+                )
+                db.session.add(cor_option)
+                new_options["cores"].append(cor_estampa)
+            
+            # Check if fornecedor exists, create if not
+            fornecedor = OpcaoCampo.query.filter_by(
+                tipo="fornecedor", 
+                valor=fornecedor_nome
+            ).first()
+            
+            if not fornecedor:
+                fornecedor = OpcaoCampo(
+                    tipo="fornecedor",
+                    valor=fornecedor_nome,
+                    ativo=True
+                )
+                db.session.add(fornecedor)
+                db.session.flush()  # Get ID for the new fornecedor
+                new_options["fornecedores"].append(fornecedor_nome)
+            
+            fornecedor_id = fornecedor.id
+            
+            # Create products (one per quantity for single-unit paradigm)
+            for i in range(quantidade):
+                novo_produto = Produto(
+                    nome=nome,
+                    tamanho=tamanho,
+                    sexo=sexo,
+                    cor_estampa=cor_estampa,
+                    fornecedor_id=fornecedor_id,
+                    custo=custo,
+                    preco_venda=preco_venda,
+                    quantidade_atual=1,  # Always 1 in single-unit paradigm
+                    data_compra=data_compra
+                )
+                db.session.add(novo_produto)
+                
+                # Create purchase transaction
+                transacao = TransacaoEstoque(
+                    produto=novo_produto,
+                    tipo_transacao="compra",
+                    quantidade=1,
+                    data_transacao=data_compra,
+                    observacoes="Importação",
+                    custo_unitario_transacao=custo
+                )
+                db.session.add(transacao)
+                
+                produtos_criados.append(novo_produto)
+        
+        db.session.commit()
+        
+        # Clean up new_options to only include non-empty lists
+        for key in list(new_options.keys()):
+            if not new_options[key]:
+                del new_options[key]
+        
         return jsonify({
-            "success": False, 
-            "error": "Erro ao excluir produtos e transações.", 
-            "details": str(e)
-        }), 500
+            "success": True, 
+            "message": f"{len(produtos_criados)} produto(s) importado(s) com sucesso",
+            "imported": len(produtos_criados),
+            "newOptions": new_options if any(new_options.values()) else None
+        }), 201
+    
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": f"Erro de banco de dados: {str(e)}"}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
