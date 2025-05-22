@@ -162,14 +162,27 @@ def delete_produto(produto_id):
     if not produto:
         return jsonify({"success": False, "error": "Produto não encontrado"}), 404
 
-    # Check for related transactions or sales before deleting? (Optional, depends on requirements)
-    if produto.transacoes: # Check if the relationship list is not empty
-        return jsonify({"success": False, "error": "Não é possível excluir produto com histórico de transações."}), 400
-    # Add check for sales items if that relationship exists
-    # if produto.itens_venda:
-    #     return jsonify({"success": False, "error": "Não é possível excluir produto com histórico de vendas."}), 400
+    # Check if the product has quantity = 0 (already sold)
+    if produto.quantidade_atual == 0:
+        return jsonify({
+            "success": False, 
+            "error": "Não é possível excluir produto com quantidade 0 (já vendido)."
+        }), 400
+    
+    # Check if the product has quantity = 1 (can be deleted)
+    if produto.quantidade_atual != 1:
+        return jsonify({
+            "success": False, 
+            "error": "Só é possível excluir produtos com quantidade = 1."
+        }), 400
 
     try:
+        # Delete associated transactions to avoid foreign key constraint errors
+        if hasattr(produto, 'transacoes') and produto.transacoes:
+            for transacao in produto.transacoes:
+                db.session.delete(transacao)
+        
+        # Now delete the product
         db.session.delete(produto)
         db.session.commit()
     except Exception as e:
@@ -177,4 +190,3 @@ def delete_produto(produto_id):
         return jsonify({"success": False, "error": "Erro interno do servidor ao excluir.", "details": str(e)}), 500
 
     return jsonify({"success": True, "message": f"Produto {produto_id} excluído com sucesso"}), 200
-
