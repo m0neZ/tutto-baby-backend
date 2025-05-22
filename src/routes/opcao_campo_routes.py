@@ -61,6 +61,78 @@ def add_opcao_campo(tipo_campo):
 
     return jsonify({"success": True, "opcao": nova_opcao.to_dict()}), 201
 
+# New endpoint for editing option value
+@opcao_campo_bp.route("/<tipo_campo>/<int:opcao_id>", methods=["PUT"])
+def update_opcao_campo(tipo_campo, opcao_id):
+    if tipo_campo not in ALLOWED_FIELD_TYPES:
+        return jsonify({"success": False, "error": f"Tipo de campo inválido: {tipo_campo}"}), 400
+        
+    opcao = FieldOption.query.get(opcao_id)
+    if not opcao:
+        return jsonify({"success": False, "error": "Opção não encontrada"}), 404
+        
+    if opcao.type != tipo_campo:
+        return jsonify({"success": False, "error": f"Opção não pertence ao tipo {tipo_campo}"}), 400
+        
+    data = request.get_json()
+    novo_valor = data.get("value", "").strip()
+    
+    if not novo_valor:
+        return jsonify({"success": False, "error": "O valor da opção é obrigatório"}), 400
+        
+    # Check if new value already exists for another option
+    existing = FieldOption.query.filter(
+        FieldOption.type == tipo_campo,
+        db.func.lower(FieldOption.value) == novo_valor.lower(),
+        FieldOption.id != opcao_id
+    ).first()
+    
+    if existing:
+        error_message = f"A opção '{novo_valor}' já existe para {tipo_campo}."
+        return jsonify({"success": False, "error": error_message}), 409
+        
+    # Update option value
+    opcao.value = novo_valor
+    
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Erro interno do servidor ao atualizar opção.", "details": str(e)}), 500
+        
+    return jsonify({"success": True, "message": "Opção atualizada com sucesso", "opcao": opcao.to_dict()}), 200
+
+# New endpoint for toggling option status
+@opcao_campo_bp.route("/<tipo_campo>/<int:opcao_id>/status", methods=["PUT"])
+def toggle_opcao_status(tipo_campo, opcao_id):
+    if tipo_campo not in ALLOWED_FIELD_TYPES:
+        return jsonify({"success": False, "error": f"Tipo de campo inválido: {tipo_campo}"}), 400
+        
+    opcao = FieldOption.query.get(opcao_id)
+    if not opcao:
+        return jsonify({"success": False, "error": "Opção não encontrada"}), 404
+        
+    if opcao.type != tipo_campo:
+        return jsonify({"success": False, "error": f"Opção não pertence ao tipo {tipo_campo}"}), 400
+        
+    data = request.get_json()
+    is_active = data.get("is_active")
+    
+    if is_active is None:
+        return jsonify({"success": False, "error": "O status da opção é obrigatório"}), 400
+        
+    # Update option status
+    opcao.is_active = bool(is_active)
+    
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": "Erro interno do servidor ao atualizar status da opção.", "details": str(e)}), 500
+        
+    status_msg = "ativada" if opcao.is_active else "desativada"
+    return jsonify({"success": True, "message": f"Opção {status_msg} com sucesso", "opcao": opcao.to_dict()}), 200
+
 @opcao_campo_bp.route("/<int:opcao_id>/deactivate", methods=["PATCH"])
 def deactivate_opcao(opcao_id):
     opcao = FieldOption.query.get(opcao_id)
@@ -100,4 +172,3 @@ def activate_opcao(opcao_id):
     return jsonify({"success": True, "message": "Opção ativada com sucesso", "opcao": opcao.to_dict()}), 200
 
 # DELETE route is not implemented as per requirement to use activate/deactivate
-
