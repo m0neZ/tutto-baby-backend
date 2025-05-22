@@ -190,3 +190,33 @@ def delete_produto(produto_id):
         return jsonify({"success": False, "error": "Erro interno do servidor ao excluir.", "details": str(e)}), 500
 
     return jsonify({"success": True, "message": f"Produto {produto_id} excluído com sucesso"}), 200
+
+# Special endpoint for clearing all test data
+@produto_bp.route("/clear_all_test_data", methods=["POST"])
+def clear_all_test_data():
+    try:
+        # Get all products
+        produtos = Produto.query.all()
+        
+        # Delete all associated transactions first
+        for produto in produtos:
+            if hasattr(produto, 'transacoes') and produto.transacoes:
+                for transacao in produto.transacoes:
+                    db.session.delete(transacao)
+        
+        # Then delete all products
+        for produto in produtos:
+            db.session.delete(produto)
+            
+        db.session.commit()
+        return jsonify({
+            "success": True, 
+            "message": "Todos os produtos e transações foram excluídos com sucesso."
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "success": False, 
+            "error": "Erro ao excluir produtos e transações.", 
+            "details": str(e)
+        }), 500
