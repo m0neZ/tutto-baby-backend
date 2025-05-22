@@ -1,6 +1,7 @@
 # === routes/product_routes.py ===
 from flask import Blueprint, request, jsonify, current_app
 from src.models import db, Produto, TransacaoEstoque, FieldOption
+from src.models.supplier import Fornecedor
 from datetime import datetime
 import os
 from sqlalchemy import func
@@ -250,16 +251,12 @@ def import_produtos():
                 db.session.add(cor_option)
                 new_options["cores"].append(cor_estampa)
             
-            # Check if fornecedor exists, create if not
-            fornecedor = FieldOption.query.filter_by(
-                type="fornecedor", 
-                value=fornecedor_nome
-            ).first()
+            # Check if fornecedor exists in the fornecedores table, create if not
+            fornecedor = Fornecedor.query.filter_by(nome=fornecedor_nome).first()
             
             if not fornecedor:
-                fornecedor = FieldOption(
-                    type="fornecedor",
-                    value=fornecedor_nome,
+                fornecedor = Fornecedor(
+                    nome=fornecedor_nome,
                     is_active=True
                 )
                 db.session.add(fornecedor)
