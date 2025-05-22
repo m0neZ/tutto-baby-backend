@@ -2,6 +2,7 @@
 from flask import Blueprint, request, jsonify
 from src.models import db, Venda, ItemVenda, Produto, Cliente, TransacaoEstoque # Updated import path
 from datetime import datetime
+from sqlalchemy import func
 
 venda_bp = Blueprint("venda_bp", __name__)
 
@@ -63,42 +64,55 @@ def create_venda():
             db.session.rollback() # Rollback if any item is invalid
             return jsonify({"success": False, "error": f"Dados inválidos para o item: {item_data}"}), 400
 
-        produto = Produto.query.get(produto_id)
-        if not produto:
+        # Get all products with the same nome, tamanho, cor_estampa, and fornecedor_id
+        # but different IDs (individual units) ordered by data_compra (FIFO)
+        produto_base = Produto.query.get(produto_id)
+        if not produto_base:
             db.session.rollback()
             return jsonify({"success": False, "error": f"Produto com ID {produto_id} não encontrado."}), 404
 
-        if produto.quantidade_atual < quantidade:
+        # Find all matching products with quantity=1 ordered by data_compra (FIFO)
+        produtos_fifo = Produto.query.filter(
+            Produto.nome == produto_base.nome,
+            Produto.tamanho == produto_base.tamanho,
+            Produto.cor_estampa == produto_base.cor_estampa,
+            Produto.fornecedor_id == produto_base.fornecedor_id,
+            Produto.quantidade_atual == 1  # Only consider products with quantity=1
+        ).order_by(Produto.data_compra.asc()).limit(quantidade).all()
+
+        if len(produtos_fifo) < quantidade:
             db.session.rollback()
             # Corrected the f-string to remove the problematic newline
-            error_message = f"Estoque insuficiente para {produto.nome}. Disponível: {produto.quantidade_atual}, Solicitado: {quantidade}."
+            error_message = f"Estoque insuficiente para {produto_base.nome}. Disponível: {len(produtos_fifo)}, Solicitado: {quantidade}."
             return jsonify({"success": False, "error": error_message}), 400
 
-        # Decrease stock
-        produto.quantidade_atual -= quantidade
+        # Process each product individually following FIFO
+        for produto in produtos_fifo:
+            # Decrease stock
+            produto.quantidade_atual = 0  # Set to 0 since we're selling this unit
 
-        # Create SaleItem
-        item_venda = ItemVenda(
-            venda=nova_venda, # Associate with the sale being created
-            produto_id=produto.id,
-            quantidade=quantidade,
-            preco_unitario=produto.preco_venda, # Price at time of sale
-            custo_unitario=produto.custo # Cost at time of sale (for COGS)
-        )
-        itens_para_adicionar.append(item_venda)
-        total_venda += item_venda.preco_unitario * item_venda.quantidade
+            # Create SaleItem
+            item_venda = ItemVenda(
+                venda=nova_venda, # Associate with the sale being created
+                produto_id=produto.id,
+                quantidade=1,  # Always 1 in the single-unit paradigm
+                preco_unitario=produto.preco_venda, # Price at time of sale
+                custo_unitario=produto.custo # Cost at time of sale (for COGS)
+            )
+            itens_para_adicionar.append(item_venda)
+            total_venda += item_venda.preco_unitario * item_venda.quantidade
 
-        # Create Inventory Transaction
-        transacao = TransacaoEstoque(
-            produto_id=produto.id,
-            tipo_transacao="venda",
-            quantidade=-quantidade, # Negative quantity for sale
-            data_transacao=data_venda,
-            observacoes=f"Venda ID: {nova_venda.id}", # Will be updated after commit
-            custo_unitario_transacao=produto.custo, # Record cost for COGS
-            venda=nova_venda # Link transaction to sale
-        )
-        transacoes_para_adicionar.append(transacao)
+            # Create Inventory Transaction
+            transacao = TransacaoEstoque(
+                produto_id=produto.id,
+                tipo_transacao="venda",
+                quantidade=-1, # Negative quantity for sale, always 1 in single-unit paradigm
+                data_transacao=data_venda,
+                observacoes=f"Venda ID: {nova_venda.id}", # Will be updated after commit
+                custo_unitario_transacao=produto.custo, # Record cost for COGS
+                venda=nova_venda # Link transaction to sale
+            )
+            transacoes_para_adicionar.append(transacao)
 
     # Update total sale amount
     nova_venda.valor_total = total_venda
@@ -119,7 +133,33 @@ def create_venda():
 
     return jsonify({"success": True, "venda": nova_venda.to_dict()}), 201
 
+# New endpoint to get FIFO information for products
+@venda_bp.route("/fifo_info", methods=["GET"])
+def get_fifo_info():
+    # Get all products with quantity=1
+    produtos = Produto.query.filter(Produto.quantidade_atual == 1).all()
+    
+    # Group products by nome, tamanho, cor_estampa, fornecedor_id
+    produto_groups = {}
+    for p in produtos:
+        key = f"{p.nome}_{p.tamanho}_{p.cor_estampa}_{p.fornecedor_id}"
+        if key not in produto_groups:
+            produto_groups[key] = []
+        produto_groups[key].append(p)
+    
+    # Sort each group by data_compra and assign FIFO rank
+    fifo_info = {}
+    for key, group in produto_groups.items():
+        sorted_group = sorted(group, key=lambda p: p.data_compra or datetime.min)
+        for i, p in enumerate(sorted_group):
+            fifo_info[p.id] = {
+                "fifo_rank": i + 1,
+                "total_in_group": len(sorted_group),
+                "data_compra": p.data_compra.isoformat() if p.data_compra else None
+            }
+    
+    return jsonify({"success": True, "fifo_info": fifo_info}), 200
+
 # PUT/DELETE for Sales might be complex due to inventory implications.
 # Usually, sales are adjusted via Returns or Credit Notes rather than direct modification/deletion.
 # For now, only GET and POST are implemented.
-
