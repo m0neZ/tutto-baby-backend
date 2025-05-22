@@ -1,6 +1,6 @@
 # === routes/product_routes.py ===
 from flask import Blueprint, request, jsonify, current_app
-from src.models import db, Produto, TransacaoEstoque, OpcaoCampo
+from src.models import db, Produto, TransacaoEstoque, FieldOption
 from datetime import datetime
 import os
 from sqlalchemy import func
@@ -221,46 +221,46 @@ def import_produtos():
                 data_compra = datetime.now().date()  # Default to today if format is wrong
             
             # Check if tamanho exists, create if not
-            tamanho_option = OpcaoCampo.query.filter_by(
-                tipo="tamanho", 
-                valor=tamanho
+            tamanho_option = FieldOption.query.filter_by(
+                type="tamanho", 
+                value=tamanho
             ).first()
             
             if not tamanho_option:
-                tamanho_option = OpcaoCampo(
-                    tipo="tamanho",
-                    valor=tamanho,
-                    ativo=True
+                tamanho_option = FieldOption(
+                    type="tamanho",
+                    value=tamanho,
+                    is_active=True
                 )
                 db.session.add(tamanho_option)
                 new_options["tamanhos"].append(tamanho)
             
             # Check if cor_estampa exists, create if not
-            cor_option = OpcaoCampo.query.filter_by(
-                tipo="cor_estampa", 
-                valor=cor_estampa
+            cor_option = FieldOption.query.filter_by(
+                type="cor_estampa", 
+                value=cor_estampa
             ).first()
             
             if not cor_option:
-                cor_option = OpcaoCampo(
-                    tipo="cor_estampa",
-                    valor=cor_estampa,
-                    ativo=True
+                cor_option = FieldOption(
+                    type="cor_estampa",
+                    value=cor_estampa,
+                    is_active=True
                 )
                 db.session.add(cor_option)
                 new_options["cores"].append(cor_estampa)
             
             # Check if fornecedor exists, create if not
-            fornecedor = OpcaoCampo.query.filter_by(
-                tipo="fornecedor", 
-                valor=fornecedor_nome
+            fornecedor = FieldOption.query.filter_by(
+                type="fornecedor", 
+                value=fornecedor_nome
             ).first()
             
             if not fornecedor:
-                fornecedor = OpcaoCampo(
-                    tipo="fornecedor",
-                    valor=fornecedor_nome,
-                    ativo=True
+                fornecedor = FieldOption(
+                    type="fornecedor",
+                    value=fornecedor_nome,
+                    is_active=True
                 )
                 db.session.add(fornecedor)
                 db.session.flush()  # Get ID for the new fornecedor
