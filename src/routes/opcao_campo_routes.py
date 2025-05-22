@@ -1,6 +1,6 @@
 # === routes/opcao_campo_routes.py ===
 from flask import Blueprint, request, jsonify
-from src.models import db, FieldOption # Updated import path
+from src.models import db, FieldOption, Produto # Updated import path
 
 # Rename blueprint
 opcao_campo_bp = Blueprint("opcao_campo_bp", __name__)
@@ -61,7 +61,7 @@ def add_opcao_campo(tipo_campo):
 
     return jsonify({"success": True, "opcao": nova_opcao.to_dict()}), 201
 
-# New endpoint for editing option value
+# Updated endpoint for editing option value with product propagation
 @opcao_campo_bp.route("/<tipo_campo>/<int:opcao_id>", methods=["PUT"])
 def update_opcao_campo(tipo_campo, opcao_id):
     if tipo_campo not in ALLOWED_FIELD_TYPES:
@@ -76,6 +76,7 @@ def update_opcao_campo(tipo_campo, opcao_id):
         
     data = request.get_json()
     novo_valor = data.get("value", "").strip()
+    update_products = data.get("update_products", True)  # Default to True for backward compatibility
     
     if not novo_valor:
         return jsonify({"success": False, "error": "O valor da opção é obrigatório"}), 400
@@ -90,17 +91,64 @@ def update_opcao_campo(tipo_campo, opcao_id):
     if existing:
         error_message = f"A opção '{novo_valor}' já existe para {tipo_campo}."
         return jsonify({"success": False, "error": error_message}), 409
-        
+    
+    # Store old value for product updates
+    old_value = opcao.value
+    
     # Update option value
     opcao.value = novo_valor
     
     try:
+        # Commit the option change first
         db.session.commit()
+        
+        # Update all products using this option if requested
+        if update_products:
+            updated_count = 0
+            
+            # Map field type to product attribute
+            field_map = {
+                "tamanho": "tamanho",
+                "cor_estampa": "cor_estampa",
+                "fornecedor": None  # Special case, handled separately
+            }
+            
+            if tipo_campo == "fornecedor":
+                # For fornecedor, we need to find the fornecedor_id
+                # This would require additional logic to map between fornecedor name and ID
+                # For now, we'll skip this as it's more complex
+                pass
+            elif tipo_campo in field_map:
+                # For direct text fields, update all matching products
+                field_name = field_map[tipo_campo]
+                products = Produto.query.filter(getattr(Produto, field_name) == old_value).all()
+                
+                for product in products:
+                    setattr(product, field_name, novo_valor)
+                    updated_count += 1
+                
+                db.session.commit()
+                
+                return jsonify({
+                    "success": True, 
+                    "message": f"Opção atualizada com sucesso. {updated_count} produtos atualizados.", 
+                    "opcao": opcao.to_dict(),
+                    "updated_products": updated_count
+                }), 200
+            
+        return jsonify({
+            "success": True, 
+            "message": "Opção atualizada com sucesso", 
+            "opcao": opcao.to_dict()
+        }), 200
+        
     except Exception as e:
         db.session.rollback()
-        return jsonify({"success": False, "error": "Erro interno do servidor ao atualizar opção.", "details": str(e)}), 500
-        
-    return jsonify({"success": True, "message": "Opção atualizada com sucesso", "opcao": opcao.to_dict()}), 200
+        return jsonify({
+            "success": False, 
+            "error": "Erro interno do servidor ao atualizar opção.", 
+            "details": str(e)
+        }), 500
 
 # New endpoint for toggling option status
 @opcao_campo_bp.route("/<tipo_campo>/<int:opcao_id>/status", methods=["PUT"])
