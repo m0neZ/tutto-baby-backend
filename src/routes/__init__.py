@@ -9,6 +9,7 @@ from .opcao_campo_routes import opcao_campo_bp
 from .field_routes import field_bp
 from .report_routes import report_bp
 from .alert_routes import alerta_bp
+from .exchange_routes import exchange_bp
 
 def register_routes(app):
     # Public auth endpoints
@@ -59,3 +60,8 @@ def register_routes(app):
     @jwt_required()
     def secure_alertas(): pass
     app.register_blueprint(alerta_bp, url_prefix="/api/alertas")
+    
+    @exchange_bp.before_request
+    @jwt_required()
+    def secure_exchanges(): pass
+    app.register_blueprint(exchange_bp, url_prefix="/api/trocas")
