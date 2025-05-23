@@ -6,6 +6,7 @@ class Venda(db.Model):
     __tablename__ = 'vendas'
     
     id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
     cliente_nome = db.Column(db.String(100), nullable=False)
     cliente_sobrenome = db.Column(db.String(100), nullable=True)
     data_venda = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -21,10 +22,12 @@ class Venda(db.Model):
     # Relationships
     itens = db.relationship('ItemVenda', backref='venda', cascade='all, delete-orphan')
     transacoes = db.relationship('TransacaoEstoque', backref='venda')
+    # Note: 'cliente' backref is defined in the Cliente model
     
     def to_dict(self):
         return {
             'id': self.id,
+            'cliente_id': self.cliente_id,
             'cliente_nome': self.cliente_nome,
             'cliente_sobrenome': self.cliente_sobrenome,
             'data_venda': self.data_venda.isoformat() if self.data_venda else None,
