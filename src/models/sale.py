@@ -49,8 +49,8 @@ class ItemVenda(db.Model):
     preco_unitario = db.Column(db.Float, nullable=False)
     custo_unitario = db.Column(db.Float, nullable=False)
     
-    # Relationships
-    produto = db.relationship('Produto')
+    # Removed explicit relationship to resolve conflict with backref
+    # produto = db.relationship('Produto')  # This line was causing the conflict
     
     def to_dict(self):
         return {
