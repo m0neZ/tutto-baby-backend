@@ -57,6 +57,21 @@ def create_app():
     def health_check():
         return jsonify({"status": "ok"}), 200
 
+    @app.route('/api/admin/reset-vendas-table', methods=['GET'])
+@jwt_required()
+def reset_vendas_table():
+    try:
+        # Drop the table
+        db.session.execute(text("DROP TABLE IF EXISTS vendas CASCADE"))
+        db.session.commit()
+        
+        # Force SQLAlchemy to recreate the table on next app startup
+        return jsonify({"success": True, "message": "Vendas table dropped. It will be recreated on next app restart."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
     # HTTP exception handler
     @app.errorhandler(HTTPException)
     def handle_http_exception(e):
