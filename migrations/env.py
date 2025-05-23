@@ -1,3 +1,7 @@
+"""env.py
+
+Alembic environment script for database migrations.
+"""
 from __future__ import with_statement
 
 import logging
