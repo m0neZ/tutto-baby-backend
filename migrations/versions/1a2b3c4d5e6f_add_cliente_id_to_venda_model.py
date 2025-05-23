@@ -2,7 +2,7 @@
 
 Revision ID: 1a2b3c4d5e6f
 Revises: 
-Create Date: 2025-05-23 01:17:00.000000
+Create Date: 2025-05-23 14:12:00.000000
 
 """
 from alembic import op
@@ -17,20 +17,26 @@ depends_on = None
 
 
 def upgrade():
-    # Add cliente_id column to vendas table
-    op.add_column('vendas', sa.Column('cliente_id', sa.Integer(), nullable=True))
+    # Check if column exists before adding it
+    from sqlalchemy import inspect
     
-    # Create foreign key constraint
-    op.create_foreign_key(
-        'fk_vendas_cliente_id_clientes', 
-        'vendas', 'clientes',
-        ['cliente_id'], ['id']
-    )
+    # Get inspector
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    
+    # Check if column exists
+    has_cliente_id = False
+    try:
+        columns = inspector.get_columns('vendas')
+        has_cliente_id = any(col['name'] == 'cliente_id' for col in columns)
+    except:
+        pass
+    
+    # Only add if it doesn't exist
+    if not has_cliente_id:
+        op.add_column('vendas', sa.Column('cliente_id', sa.Integer(), nullable=True))
 
 
 def downgrade():
-    # Drop foreign key constraint
-    op.drop_constraint('fk_vendas_cliente_id_clientes', 'vendas', type_='foreignkey')
-    
-    # Drop cliente_id column
+    # Drop column
     op.drop_column('vendas', 'cliente_id')
