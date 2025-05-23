@@ -6,7 +6,7 @@ from src.models import db, FieldOption, Produto, Fornecedor # Updated import pat
 opcao_campo_bp = Blueprint("opcao_campo_bp", __name__)
 
 # Define allowed field types for this manager
-ALLOWED_FIELD_TYPES = ["tamanho", "cor_estampa", "fornecedor"]
+ALLOWED_FIELD_TYPES = ["tamanho", "cor_estampa", "fornecedor", "forma_pagamento"]
 
 @opcao_campo_bp.route("/<tipo_campo>", methods=["GET"])
 def get_opcoes_campo(tipo_campo):
