@@ -57,10 +57,13 @@ def create_app():
     def health_check():
         return jsonify({"status": "ok"}), 200
 
-    @app.route('/api/admin/reset-vendas-table', methods=['GET'])
-@jwt_required()
+   @app.route('/api/admin/reset-vendas-table', methods=['GET'])
 def reset_vendas_table():
     try:
+        # Import needed modules
+        from sqlalchemy import text
+        from flask_jwt_extended import jwt_required
+        
         # Drop the table
         db.session.execute(text("DROP TABLE IF EXISTS vendas CASCADE"))
         db.session.commit()
@@ -70,6 +73,7 @@ def reset_vendas_table():
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
     # HTTP exception handler
