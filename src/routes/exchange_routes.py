@@ -199,3 +199,6 @@ def create_troca():
         }), 500
 
 # Additional routes for exchange management can be added as needed
+
+# Export the blueprint with the name expected in routes/__init__.py
+exchange_bp = troca_bp
