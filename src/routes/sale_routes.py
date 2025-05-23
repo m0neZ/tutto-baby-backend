@@ -23,6 +23,7 @@ def get_venda(venda_id):
 @venda_bp.route("/", methods=["POST"])
 def create_venda():
     data = request.json
+    cliente_id = data.get("cliente_id")
     cliente_nome = data.get("cliente_nome")
     cliente_sobrenome = data.get("cliente_sobrenome")
     forma_pagamento = data.get("forma_pagamento")
@@ -60,6 +61,7 @@ def create_venda():
         
         # Create sale record
         nova_venda = Venda(
+            cliente_id=cliente_id,
             cliente_nome=cliente_nome,
             cliente_sobrenome=cliente_sobrenome,
             forma_pagamento=forma_pagamento,
@@ -120,6 +122,8 @@ def update_venda(venda_id):
     data = request.json
     
     # Update basic info
+    if "cliente_id" in data:
+        venda.cliente_id = data["cliente_id"]
     if "cliente_nome" in data:
         venda.cliente_nome = data["cliente_nome"]
     if "cliente_sobrenome" in data:
